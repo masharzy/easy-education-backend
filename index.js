@@ -101,6 +101,14 @@ const run = async () => {
         .toArray();
       res.send(classes);
     });
+    app.get("/classes/slug/:slug", async (req, res) => {
+      const classes = await classesCollection
+        .find({
+          slug: req.params.slug,
+        })
+        .toArray();
+      res.send(classes);
+    });
     app.post("/class", async (req, res) => {
       const courseClass = req.body;
       const result = await classesCollection.insertOne(courseClass);
