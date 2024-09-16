@@ -173,6 +173,20 @@ const run = async () => {
       );
       res.send(result);
     });
+    app.put("/class-update/:id", async (req, res) => {
+      const topic = req.body;
+      const filter = { _id: new ObjectId(req.params.id) };
+      const updatedDoc = {
+        $set: topic,
+      };
+      const options = { upsert: true };
+      const result = await classesCollection.updateOne(
+        filter,
+        updatedDoc,
+        options
+      );
+      res.send(result);
+    });
 
     console.log("Connected");
   } finally {
