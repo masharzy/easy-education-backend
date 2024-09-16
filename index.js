@@ -187,6 +187,14 @@ const run = async () => {
       );
       res.send(result);
     });
+    app.get("/topics/slug/:slug", async (req, res) => {
+      const classes = await topicCollection
+        .find({
+          slug: req.params.slug,
+        })
+        .toArray();
+      res.send(classes);
+    });
 
     console.log("Connected");
   } finally {
