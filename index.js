@@ -28,6 +28,7 @@ const run = async () => {
     const classesCollection = client
       .db("mahdyabrarsharzy")
       .collection("classes");
+    const topicCollection = client.db("mahdyabrarsharzy").collection("topics");
 
     // apis
     // get all courses
@@ -126,6 +127,51 @@ const run = async () => {
         _id: new ObjectId(req.params.id),
       });
       res.send(course);
+    });
+
+    app.post("/topic", async (req, res) => {
+      const topic = req.body;
+      const result = await topicCollection.insertOne(topic);
+      res.send(result);
+    });
+    app.delete("/delete-topic/:id", async (req, res) => {
+      const id = req.params.id;
+      const result = await topicCollection.deleteOne({
+        _id: new ObjectId(id),
+      });
+      res.send(result);
+    });
+    app.get("/topic/:id", async (req, res) => {
+      const topic = await topicCollection.findOne({
+        _id: new ObjectId(req.params.id),
+      });
+      res.send(topic);
+    });
+    app.get("/topics", async (req, res) => {
+      const topics = await topicCollection.find({}).toArray();
+      res.send(topics);
+    });
+    app.get("/topics/:id", async (req, res) => {
+      const topics = await topicCollection
+        .find({
+          courseId: req.params.id,
+        })
+        .toArray();
+      res.send(topics);
+    });
+    app.put("/topic-update/:id", async (req, res) => {
+      const topic = req.body;
+      const filter = { _id: new ObjectId(req.params.id) };
+      const updatedDoc = {
+        $set: topic,
+      };
+      const options = { upsert: true };
+      const result = await topicCollection.updateOne(
+        filter,
+        updatedDoc,
+        options
+      );
+      res.send(result);
     });
 
     console.log("Connected");
