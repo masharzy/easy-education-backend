@@ -7,7 +7,10 @@ const jwt = require("jsonwebtoken");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+  origin: "https://easyeducation.netlify.app", // ✅ frontend origin
+  credentials: true // ✅ enable if cookies or token stored via headers
+}));
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.gmv6h.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 const client = new MongoClient(uri, {
