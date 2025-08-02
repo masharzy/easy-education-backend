@@ -3,6 +3,7 @@ const app = express();
 const cors = require("cors");
 const port = process.env.PORT || 4000;
 require("dotenv").config();
+const jwt = require("jsonwebtoken");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
 app.use(express.json());
@@ -17,6 +18,21 @@ const client = new MongoClient(uri, {
   },
 });
 
+const verifyJWT = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    return res.status(401).send({ message: "UnAuthorized access" });
+  }
+  const token = authHeader.split(" ")[1];
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+    if (err) {
+      return res.status(403).send({ message: "Forbidden access" });
+    }
+    req.decoded = decoded;
+    next();
+  });
+};
+
 const run = async () => {
   try {
     await client.connect();
@@ -29,6 +45,13 @@ const run = async () => {
       .db("mahdyabrarsharzy")
       .collection("classes");
     const topicCollection = client.db("mahdyabrarsharzy").collection("topics");
+    const userCollection = client.db("mahdyabrarsharzy").collection("users");
+    const enrolledUsersCollection = client
+      .db("mahdyabrarsharzy")
+      .collection("enrolledUsersCollection");
+    const pendingEnrolledCourseCollection = client
+      .db("mahdyabrarsharzy")
+      .collection("pendingEnrolledCourse");
 
     // apis
     // get all courses
@@ -40,6 +63,12 @@ const run = async () => {
     app.get("/course/:slug", async (req, res) => {
       const course = await coursesCollection.findOne({
         slug: req.params.slug,
+      });
+      res.send(course);
+    });
+    app.get("/course-by-id/:id", async (req, res) => {
+      const course = await coursesCollection.findOne({
+        _id: new ObjectId(req.params.id),
       });
       res.send(course);
     });
@@ -128,7 +157,6 @@ const run = async () => {
       });
       res.send(course);
     });
-
     app.post("/topic", async (req, res) => {
       const topic = req.body;
       const result = await topicCollection.insertOne(topic);
@@ -194,6 +222,133 @@ const run = async () => {
         })
         .toArray();
       res.send(classes);
+    });
+    //update or add a user
+    app.put("/user/:email", async (req, res) => {
+      const email = req.params.email;
+      const user = req.body;
+      const filter = { email: email };
+      const options = { upsert: true };
+      const updatedDoc = {
+        $set: user,
+      };
+      const result = await userCollection.updateOne(
+        filter,
+        updatedDoc,
+        options
+      );
+      const token = jwt.sign(
+        { email: email },
+        process.env.ACCESS_TOKEN_SECRET,
+        { expiresIn: "1h" }
+      );
+      res.send({ result, token });
+    });
+    //check admin
+    app.get("/admin/:email", async (req, res) => {
+      const email = req.params.email;
+      const user = await userCollection.findOne({ email: email });
+      const isAdmin = user.role === "admin";
+      res.send({ admin: isAdmin });
+    });
+    //make a user to admin
+    app.put("/admin/:email", verifyJWT, async (req, res) => {
+      const email = req.params.email;
+      const filter = { email: email };
+      const updatedDoc = {
+        $set: { role: "admin" },
+      };
+      const result = await userCollection.updateOne(filter, updatedDoc);
+      return res.send(result);
+    });
+    // get all users
+    app.get("/users", verifyJWT, async (req, res) => {
+      const users = await userCollection.find({}).toArray();
+      res.send(users);
+    });
+    //delete a user
+    app.delete("/user/:email", verifyJWT, async (req, res) => {
+      const email = req.params.email;
+      const filter = { email: email };
+      const user = await userCollection.deleteOne(filter);
+      res.send(user);
+    });
+
+    //make a user to admin
+    app.put("/make-user/:email", verifyJWT, async (req, res) => {
+      const email = req.params.email;
+      const filter = { email: email };
+      const updatedDoc = {
+        $set: { role: "user" },
+      };
+      const result = await userCollection.updateOne(filter, updatedDoc);
+      return res.send(result);
+    });
+
+    // post pending Enrolled Course
+    app.post("/pendingEnrolledCourse", verifyJWT, async (req, res) => {
+      const pendingEnrolledCourse = req.body;
+      const result = await pendingEnrolledCourseCollection.insertOne(
+        pendingEnrolledCourse
+      );
+      res.send(result);
+    });
+    // get all pending Enrolled Courses
+    app.get("/pendingEnrolledCourses", verifyJWT, async (req, res) => {
+      const pendingEnrolledCourses = await pendingEnrolledCourseCollection
+        .find({})
+        .sort({ _id: -1 })
+        .toArray();
+      res.send(pendingEnrolledCourses);
+    });
+    // check if enrolled already
+    app.get("/pendingEnrolledCourse/:email/:courseId", async (req, res) => {
+      const userEmail = req.params.email;
+      const requestedCourseId = req.params.courseId;
+      const pendingEnrolledCourseUser =
+        await pendingEnrolledCourseCollection.findOne({
+          userEmail: userEmail,
+          requestedCourseId: requestedCourseId,
+        });
+      const isFound = pendingEnrolledCourseUser ? "Found" : "Not Found";
+      res.send(isFound);
+    });
+    //delete a user
+    app.delete(
+      "/pendingEnrolledCourse/delete/:id",
+      verifyJWT,
+      async (req, res) => {
+        const id = req.params.id;
+        const result = await pendingEnrolledCourseCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+        res.send(result);
+      }
+    );
+    // add enrolled users
+    app.post("/enrolled-user", async (req, res) => {
+      const user = req.body;
+      const result = await enrolledUsersCollection.insertOne(user);
+      res.send(result);
+    });
+    // get enrolled users
+    app.get("/enrolled-users", async (req, res) => {
+      const users = await enrolledUsersCollection.find({}).toArray();
+      res.send(users)
+    });
+    app.get("/enrolled-users-by-slug-and-email/:slug/:email", async (req, res) => {
+      const course = await enrolledUsersCollection.findOne({
+        courseSlug: req.params.slug,
+        email: req.params.email,
+      });
+      const isFound = course ? "Found" : "Not Found";
+      res.send(isFound);
+    });
+    app.get("/enrolled-users-by-email/:email", async (req, res) => {
+      const course = await enrolledUsersCollection.find({
+        email: req.params.email,
+      }).toArray();
+      res.send(course);
     });
 
     console.log("Connected");
